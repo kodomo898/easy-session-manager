@@ -1,0 +1,70 @@
+#!/bin/bash
+
+help () {
+cat <<EOF
+
+        [AWS Session Manager Tool]
+            - list :Get Available Instance List
+            - start :Session start example: ssm start [instance_id]
+            - help : it is help
+
+EOF
+}
+
+check_config () {
+    if ! test -e ~/.aws/credentials; then
+        printf 'aws configure is not set'
+        exit 1
+    fi
+
+    if ! test -e /usr/local/bin/session-manager-plugin; then
+        printf "SessionManagerPlugin Not Install\r\n"
+        read -p "Auto Install? y/n: " check
+        case "$check" in [yY]*) ;; *) echo "abort." ; exit ;; esac
+        curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/mac/sessionmanager-bundle.zip" \
+            -o "sessionmanager-bundle.zip"
+        unzip sessionmanager-bundle.zip
+        sudo ./sessionmanager-bundle/install \
+            -i /usr/local/sessionmanagerplugin \
+            -b /usr/local/bin/session-manager-plugin
+        printf "\r\nTry Again Command"
+    fi
+}
+
+list () {
+    LIST_FILE='/tmp/instance_list'
+
+    printf "Wait...\r\n"
+    printf "[SessionManager Active Instances]\r\n" > $LIST_FILE
+    echo "----------------------------------------------------------------------" >> $LIST_FILE
+    for instance_id in `aws ssm \
+        describe-instance-information \
+        --query InstanceInformationList[].InstanceId --output text`
+    do
+        aws ec2 \
+            describe-tags \
+            --filters \
+                "Name=resource-type,Values=instance" \
+                "Name=key,Values=Name" \
+                "Name=resource-id,Values=$instance_id" \
+            --query Tags[] \
+            --output text >> $LIST_FILE
+    done
+    echo "---------------------------------------------------------------------" >> $LIST_FILE
+    cat $LIST_FILE
+}
+
+start () {
+    printf "Connected to $1 ..."
+    aws ssm \
+        start-session \
+        --target $1
+}
+
+if test -z $1; then
+    help
+    exit 1
+fi
+
+check_config
+$1 $2
