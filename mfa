@@ -1,0 +1,42 @@
+#!/bin/bash
+
+TOTP_KEY=base32secret3232
+TOTP_SERIAL=arn:aws:iam::$1:mfa/$2
+
+function calctotp
+{
+    echo "$3" \
+        | python -c 'import sys,pyotp; sys.stdout.write(pyotp.TOTP(input()).now())'
+}
+
+token=$3
+
+if [ "${token}" == "" ]; then
+    token=$(calctotp ${TOTP_KEY})
+fi
+
+if [ "${token}" == "" ]; then
+    echo "get OTP token failed."
+    exit 1
+fi
+
+key=$(aws sts get-session-token  \
+    --serial-number ${TOTP_SERIAL} \
+    --token-code ${token} \
+    --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
+    --output text)
+
+access_key=$(echo "${key}" | awk -F"\t" '{printf("%s",$1)}')
+secret_access_key=$(echo "${key}" | awk -F"\t" '{printf("%s",$2)}')
+session_token=$(echo "${key}" | awk -F"\t" '{printf("%s",$3)}')
+
+if [ "${access_key}" == "" ]; then
+    echo "get-session-token failed."
+    exit 1
+fi
+
+echo "set -x AWS_ACCESS_KEY_ID ${access_key}"
+echo "set -x AWS_SECRET_ACCESS_KEY ${secret_access_key}"
+echo "set -x AWS_SESSION_TOKEN ${session_token}"
+
+exit 0
