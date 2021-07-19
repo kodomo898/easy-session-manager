@@ -34,14 +34,16 @@ check_config () {
 list () {
     LIST_FILE='/tmp/instance_list'
 
+    [ -n "$1" ] && PROFILE="--profile $1" || echo "Profile Default"
+
     printf "Wait...\r\n"
     printf "[SessionManager Active Instances]\r\n" > $LIST_FILE
     echo "----------------------------------------------------------------------" >> $LIST_FILE
-    for instance_id in `aws ssm \
+    for instance_id in `aws $PROFILE ssm \
         describe-instance-information \
         --query InstanceInformationList[].InstanceId --output text`
     do
-        aws ec2 \
+        aws $PROFILE ec2 \
             describe-tags \
             --filters \
                 "Name=resource-type,Values=instance" \
@@ -56,7 +58,7 @@ list () {
 
 start () {
     printf "Connected to $1 ..."
-    aws ssm \
+    aws --profile cute ssm \
         start-session \
         --target $1
 }
